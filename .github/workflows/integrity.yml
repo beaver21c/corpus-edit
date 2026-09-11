@@ -31,22 +31,24 @@ jobs:
           print('\n샤드 %d개 모두 manifest 와 일치' % len(m['모델이_읽는_규칙']))
           PY
 
-      - name: 확인낱말이 샤드 밖으로 새지 않았는가
+      - name: 표식(확인낱말·끝표식)이 샤드 밖으로 새지 않았는가
         run: |
           python3 - <<'PY'
           import json, io, os, re, sys
           m = json.load(io.open('manifest.json', encoding='utf-8'))
           shards = [r['파일'] for r in m['모델이_읽는_규칙']]
-          words = {}
+          words = {}      # (파일, 값) — 머리의 확인낱말과 끝의 끝표식 둘 다
           for f in shards:
-              head = io.open(f, encoding='utf-8').read(400)
-              mo = re.search(r'^확인낱말:\s*(\S+)\s*$', head, re.M)
-              if not mo:
-                  print('%s 에 확인낱말 줄이 없다' % f); sys.exit(1)
-              words[f] = mo.group(1)
-          if len(set(words.values())) != len(words):
-              print('확인낱말이 겹친다 — 어느 샤드를 읽었는지 구별할 수 없다'); sys.exit(1)
-          print('확인낱말 %d개 모두 다름' % len(words))
+              t = io.open(f, encoding='utf-8').read()
+              h = re.search(r'^확인낱말:\s*(\S+)\s*$', t[:400], re.M)
+              e = re.search(r'^끝표식:\s*(\S+)\s*$', t[-300:], re.M)
+              if not h or not e:
+                  print('%s 에 확인낱말 또는 끝표식 줄이 없다' % f); sys.exit(1)
+              words.setdefault(f, []).extend([h.group(1), e.group(1)])
+          flat = [w for v in words.values() for w in v]
+          if len(set(flat)) != len(flat):
+              print('표식 값이 겹친다 — 어느 샤드를 읽었는지 구별할 수 없다'); sys.exit(1)
+          print('표식 %d개(샤드 %d개 × 머리·끝) 모두 다름' % (len(flat), len(words)))
 
           # 자기 샤드 말고 다른 공개 파일에 값이 들어 있으면 안 된다
           # 같은 샤드의 HTML 판은 자기 확인낱말을 가지고 있는 것이 정상이다
@@ -59,12 +61,13 @@ jobs:
           leak = []
           for f in files:
               t = io.open(f, encoding='utf-8', errors='ignore').read()
-              for s, w in words.items():
+              for s, vs in words.items():
                   if own.get(f) == s: continue
-                  if w in t: leak.append('%s 에 %s 의 확인낱말' % (f, s))
+                  for w in vs:
+                      if w in t: leak.append('%s 에 %s 의 표식(%s)' % (f, s, w))
           if leak:
               print('\n★ 확인낱말이 샤드 밖으로 샜다 — 모델이 파일을 읽지 않고도 답할 수 있다')
               for l in leak: print('   ' + l)
               sys.exit(1)
-          print('확인낱말이 자기 샤드(와 그 HTML 판) 안에만 있다 — 파일 %d개 검사' % len(files))
+          print('표식이 자기 샤드(와 그 HTML 판) 안에만 있다 — 파일 %d개 검사' % len(files))
           PY
