@@ -1,6 +1,6 @@
 name: integrity
-# 규칙 샤드가 manifest.json 에 적힌 것과 같은지 확인한다.
-# 이 저장소의 파일은 원본 코퍼스에서 자동 생성되므로, 여기서 손으로 고치면 여기서 걸린다.
+# 이 저장소의 파일은 원본 코퍼스에서 자동 생성된다. 여기서 손으로 고치면 여기서 걸린다.
+# 그리고 확인낱말이 샤드 밖으로 새지 않았는지 본다 — 새면 "읽었는지" 검증이 무의미해진다.
 on:
   push:
   pull_request:
@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 샤드 해시 대조
+
+      - name: 샤드가 manifest 와 일치하는가
         run: |
           python3 - <<'PY'
           import json, hashlib, io, sys
@@ -29,13 +30,40 @@ jobs:
               sys.exit(1)
           print('\n샤드 %d개 모두 manifest 와 일치' % len(m['모델이_읽는_규칙']))
           PY
-      - name: 확인낱말 중복 없음
+
+      - name: 확인낱말이 샤드 밖으로 새지 않았는가
         run: |
           python3 - <<'PY'
-          import json, io, sys
+          import json, io, os, re, sys
           m = json.load(io.open('manifest.json', encoding='utf-8'))
-          ws = [r['확인낱말'] for r in m['모델이_읽는_규칙']]
-          if len(set(ws)) != len(ws):
+          shards = [r['파일'] for r in m['모델이_읽는_규칙']]
+          words = {}
+          for f in shards:
+              head = io.open(f, encoding='utf-8').read(400)
+              mo = re.search(r'^확인낱말:\s*(\S+)\s*$', head, re.M)
+              if not mo:
+                  print('%s 에 확인낱말 줄이 없다' % f); sys.exit(1)
+              words[f] = mo.group(1)
+          if len(set(words.values())) != len(words):
               print('확인낱말이 겹친다 — 어느 샤드를 읽었는지 구별할 수 없다'); sys.exit(1)
-          print('확인낱말 %d개 모두 다름' % len(ws))
+          print('확인낱말 %d개 모두 다름' % len(words))
+
+          # 자기 샤드 말고 다른 공개 파일에 값이 들어 있으면 안 된다
+          others = [f for f in os.listdir('.')
+                    if os.path.isfile(f) and f not in shards
+                    and f.rsplit('.', 1)[-1] in ('md', 'json')]
+          leak = []
+          for f in others:
+              t = io.open(f, encoding='utf-8', errors='ignore').read()
+              for s, w in words.items():
+                  if w in t: leak.append('%s 에 %s 의 확인낱말' % (f, s))
+          for f in shards:                      # 샤드끼리도 서로의 값을 품으면 안 된다
+              t = io.open(f, encoding='utf-8').read()
+              for s, w in words.items():
+                  if s != f and w in t: leak.append('%s 에 %s 의 확인낱말' % (f, s))
+          if leak:
+              print('\n★ 확인낱말이 샤드 밖으로 샜다 — 모델이 파일을 읽지 않고도 답할 수 있다')
+              for l in leak: print('   ' + l)
+              sys.exit(1)
+          print('확인낱말이 각자 자기 샤드 안에만 있다 (검사한 다른 파일 %d개)' % len(others))
           PY
