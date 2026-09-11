@@ -49,21 +49,22 @@ jobs:
           print('확인낱말 %d개 모두 다름' % len(words))
 
           # 자기 샤드 말고 다른 공개 파일에 값이 들어 있으면 안 된다
-          others = [f for f in os.listdir('.')
-                    if os.path.isfile(f) and f not in shards
-                    and f.rsplit('.', 1)[-1] in ('md', 'json')]
+          # 같은 샤드의 HTML 판은 자기 확인낱말을 가지고 있는 것이 정상이다
+          own = {}
+          for s in shards:
+              own[s] = s
+              own[s[:-3] + '.html'] = s
+          files = [f for f in os.listdir('.')
+                   if os.path.isfile(f) and f.rsplit('.', 1)[-1] in ('md', 'json', 'html')]
           leak = []
-          for f in others:
+          for f in files:
               t = io.open(f, encoding='utf-8', errors='ignore').read()
               for s, w in words.items():
+                  if own.get(f) == s: continue
                   if w in t: leak.append('%s 에 %s 의 확인낱말' % (f, s))
-          for f in shards:                      # 샤드끼리도 서로의 값을 품으면 안 된다
-              t = io.open(f, encoding='utf-8').read()
-              for s, w in words.items():
-                  if s != f and w in t: leak.append('%s 에 %s 의 확인낱말' % (f, s))
           if leak:
               print('\n★ 확인낱말이 샤드 밖으로 샜다 — 모델이 파일을 읽지 않고도 답할 수 있다')
               for l in leak: print('   ' + l)
               sys.exit(1)
-          print('확인낱말이 각자 자기 샤드 안에만 있다 (검사한 다른 파일 %d개)' % len(others))
+          print('확인낱말이 자기 샤드(와 그 HTML 판) 안에만 있다 — 파일 %d개 검사' % len(files))
           PY
