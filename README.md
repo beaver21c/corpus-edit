@@ -64,10 +64,10 @@
 그래서 이 저장소는 샤드마다 **HTML 판**(`core.html` 등)을 같이 둔다.
 
 ```
-https://github.com/beaver21c/corpus-edit/blob/kb-v1.0.7/core.md
+https://github.com/beaver21c/corpus-edit/blob/<판번호>/core.md
 ```
 
-판 번호(`kb-v1.0.7`)를 쓰는 이유: 브랜치 이름(`main`)을 쓰면 캐시 탓에
+판 번호를 쓰는 이유: 브랜치 이름(`main`)을 쓰면 캐시 탓에
 방금 고친 기준이 반영되지 않은 채 교열될 수 있다.
 
 ## 5. 모델이 정말로 읽었는지 확인하는 법
