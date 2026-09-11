@@ -1,0 +1,41 @@
+name: integrity
+# 규칙 샤드가 manifest.json 에 적힌 것과 같은지 확인한다.
+# 이 저장소의 파일은 원본 코퍼스에서 자동 생성되므로, 여기서 손으로 고치면 여기서 걸린다.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 샤드 해시 대조
+        run: |
+          python3 - <<'PY'
+          import json, hashlib, io, sys
+          m = json.load(io.open('manifest.json', encoding='utf-8'))
+          bad = []
+          for r in m['모델이_읽는_규칙']:
+              t = io.open(r['파일'], encoding='utf-8').read()
+              h = hashlib.sha256(t.encode('utf-8')).hexdigest()[:16]
+              ok = (h == r['sha256'] and len(t) == r['자수'])
+              print('%-16s %s' % (r['파일'], '일치' if ok else '★ 어긋남'))
+              if not ok: bad.append(r['파일'])
+          if bad:
+              print('\n손으로 고친 파일이 있다: ' + ', '.join(bad))
+              print('원본 코퍼스에서 다시 생성해 올릴 것.')
+              sys.exit(1)
+          print('\n샤드 %d개 모두 manifest 와 일치' % len(m['모델이_읽는_규칙']))
+          PY
+      - name: 확인낱말 중복 없음
+        run: |
+          python3 - <<'PY'
+          import json, io, sys
+          m = json.load(io.open('manifest.json', encoding='utf-8'))
+          ws = [r['확인낱말'] for r in m['모델이_읽는_규칙']]
+          if len(set(ws)) != len(ws):
+              print('확인낱말이 겹친다 — 어느 샤드를 읽었는지 구별할 수 없다'); sys.exit(1)
+          print('확인낱말 %d개 모두 다름' % len(ws))
+          PY
